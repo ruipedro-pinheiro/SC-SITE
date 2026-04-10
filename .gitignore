@@ -1,0 +1,32 @@
+node_modules/
+.next/
+.next-corrupt*/
+dist/
+build/
+coverage/
+*.log
+.playwright-mcp/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# database
+data/*.db
+data/*.db-journal
+data/*.sqlite
+
+# bun
+.bun/
+bun.lockb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+apps/web/public/ships/*.glb

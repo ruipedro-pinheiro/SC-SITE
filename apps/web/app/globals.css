@@ -1,0 +1,21 @@
+/* Global stylesheet for the @sc-site/web app.
+ *
+ * Imports the canonical design tokens from the workspace UI package. Tailwind
+ * v4's @import "tailwindcss" is inside that file, so the chain is:
+ *
+ *   apps/web/app/globals.css
+ *     → packages/ui/src/styles/tokens.css
+ *         → @import "tailwindcss"
+ *
+ * Anything beyond tokens belongs in @layer components inside tokens.css, NOT
+ * here. This file is intentionally a thin pass-through so future agents only
+ * have one place to look.
+ */
+
+@import "@sc-site/ui/styles/tokens.css";
+
+/* Tailwind v4 needs to know which files to scan for class names. The path is
+ * relative to this CSS file. apps/web sources + packages/ui sources both feed
+ * the JIT compiler. */
+@source "../**/*.{ts,tsx}";
+@source "../../../packages/ui/src/**/*.{ts,tsx}";

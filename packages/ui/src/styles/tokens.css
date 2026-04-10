@@ -1,0 +1,279 @@
+/* ============================================================
+   sc-site — design tokens (Tailwind v4 @theme block)
+   ------------------------------------------------------------
+   This file is the production port of docs/mockups/tokens.css.
+   See MOCKUP.md §7 (typography), §8 (color), §9 (motion).
+
+   Tailwind v4 reads `@theme` directly from CSS — every token
+   here becomes a utility class automatically:
+     --color-mauve         -> bg-mauve, text-mauve, border-mauve
+     --font-sans           -> font-sans
+     --text-13             -> text-13
+     --spacing-6           -> p-6, m-6 (Tailwind v4 uses --spacing
+                              for space utilities)
+     --radius-md           -> rounded-md
+     --duration-180        -> duration-180
+     --ease-deliberate     -> ease-deliberate
+
+   Rules of thumb:
+     - Catppuccin Mocha only — no extra palette.
+     - Less than 8% of any screen may be mauve. It is an accent.
+     - One easing curve. No bouncy springs.
+     - 180 ms is the default transition unless an interaction
+       explicitly asks otherwise (panel fades 220 ms, reflow
+       600 ms, camera dolly 900 ms).
+   ============================================================ */
+
+@import "tailwindcss";
+
+@theme {
+  /* ----------------------------------------------------------
+     1. color — catppuccin mocha
+     ---------------------------------------------------------- */
+
+  /* base layers — page backgrounds and panels */
+  --color-base: #1e1e2e;
+  --color-mantle: #181825;
+  --color-crust: #11111b;
+
+  /* surfaces — borders, hairlines, subtle fills */
+  --color-surface0: #313244;
+  --color-surface1: #45475a;
+  --color-surface2: #585b70;
+
+  /* overlays — tertiary text, meta */
+  --color-overlay0: #6c7086;
+  --color-overlay1: #7f849c;
+  --color-overlay2: #9399b2;
+
+  /* text — body copy hierarchy */
+  --color-subtext0: #a6adc8;
+  --color-subtext1: #bac2de;
+  --color-text: #cdd6f4;
+
+  /* accents — mauve is THE primary accent */
+  --color-rosewater: #f5e0dc;
+  --color-flamingo: #f2cdcd;
+  --color-pink: #f5c2e7;
+  --color-mauve: #cba6f7;
+  --color-red: #f38ba8;
+  --color-maroon: #eba0ac;
+  --color-peach: #fab387;
+  --color-yellow: #f9e2af;
+  --color-green: #a6e3a1;
+  --color-teal: #94e2d5;
+  --color-sky: #89dceb;
+  --color-sapphire: #74c7ec;
+  --color-blue: #89b4fa;
+  --color-lavender: #b4befe;
+
+  /* ----------------------------------------------------------
+     2. typography
+     ---------------------------------------------------------- */
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-display: var(--font-orbitron), var(--font-inter), ui-sans-serif, sans-serif;
+
+  /* type scale — Tailwind v4 reads --text-* directly */
+  --text-10: 0.625rem;
+  --text-10--line-height: 1.4;
+  --text-11: 0.6875rem;
+  --text-11--line-height: 1.4;
+  --text-12: 0.75rem;
+  --text-12--line-height: 1.45;
+  --text-13: 0.8125rem;
+  --text-13--line-height: 1.5;
+  --text-14: 0.875rem;
+  --text-14--line-height: 1.55;
+  --text-15: 0.9375rem;
+  --text-15--line-height: 1.55;
+  --text-16: 1rem;
+  --text-16--line-height: 1.5;
+  --text-18: 1.125rem;
+  --text-18--line-height: 1.4;
+  --text-22: 1.375rem;
+  --text-22--line-height: 1.2;
+  --text-28: 1.75rem;
+  --text-28--line-height: 1.15;
+  --text-32: 2rem;
+  --text-32--line-height: 1.15;
+  --text-40: 2.5rem;
+  --text-40--line-height: 1.05;
+  --text-48: 3rem;
+  --text-48--line-height: 1;
+  --text-56: 3.5rem;
+  --text-56--line-height: 1;
+  --text-72: 4.5rem;
+  --text-72--line-height: 0.98;
+  --text-88: 5.5rem;
+  --text-88--line-height: 0.95;
+
+  /* tracking — NOTHING above 0.06em */
+  --tracking-tightx: -0.02em;
+  --tracking-label: 0.04em;
+  --tracking-micro: 0.06em;
+
+  /* ----------------------------------------------------------
+     3. radii — sharp-but-not-square (no rounded-full)
+     ---------------------------------------------------------- */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 14px;
+
+  /* ----------------------------------------------------------
+     4. motion — one easing, a handful of durations
+     ---------------------------------------------------------- */
+  --ease-deliberate: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* Tailwind v4 picks --animate-duration-* up as duration-* utility */
+  --animate-duration-120: 120ms;
+  --animate-duration-180: 180ms;
+  --animate-duration-200: 200ms;
+  --animate-duration-220: 220ms;
+  --animate-duration-400: 400ms;
+  --animate-duration-600: 600ms;
+  --animate-duration-900: 900ms;
+
+  /* ----------------------------------------------------------
+     5. layout constants used by panels and chrome
+     ---------------------------------------------------------- */
+  --width-search: 520px;
+  --width-history-drawer: 360px;
+  --width-popover: 300px;
+  --height-chip: 28px;
+  --height-top-bar: 64px;
+}
+
+/* ============================================================
+   global resets — every page expects these
+   ============================================================ */
+
+html {
+  background: var(--color-crust);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+body {
+  background: var(--color-base);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* universal focus ring — 2 px mauve, 1 px offset.
+   Never set `outline: none` downstream; override with :focus-visible. */
+:focus-visible {
+  outline: 2px solid var(--color-mauve);
+  outline-offset: 1px;
+  border-radius: var(--radius-md);
+}
+
+/* ============================================================
+   component classes — multi-property visual patterns
+   These are NOT utilities; they encapsulate a visual grammar
+   used in multiple sc-site components. Lives in @layer
+   components so Tailwind purge keeps them.
+   ============================================================ */
+
+@layer components {
+  /* The single sanctioned gradient in the whole DOM (§8 rule 4) —
+     a 1 px mauve hairline at the top of focused panels, fading in
+     over 200 ms. Used by every sc panel via PanelHairline. */
+  .panel-hairline {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(203, 166, 247, 0.55),
+      transparent
+    );
+    height: 1px;
+  }
+
+  /* The orbiting stat panel — top-left identity, bottom-left
+     logistics, bottom-right combat in ship-detail. mantle/72 +
+     blur, 1 px surface0 border, panel-hairline along the top edge. */
+  .panel {
+    background: rgba(24, 24, 37, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-surface0);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    position: relative;
+  }
+  .panel::before {
+    content: "";
+    position: absolute;
+    left: 1.5rem;
+    right: 1.5rem;
+    top: -1px;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(203, 166, 247, 0.55),
+      transparent
+    );
+  }
+
+  /* Stripe-style dense data list row — used inside identity,
+     logistics, combat. label / value / source-badge columns. */
+  .row {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-surface0);
+  }
+  .row:last-child {
+    border-bottom: none;
+  }
+  .row .k {
+    flex: 1;
+    color: var(--color-subtext0);
+    font-size: 0.8125rem;
+  }
+  .row .v {
+    color: var(--color-text);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    text-align: right;
+  }
+  .row .src {
+    color: var(--color-overlay0);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    margin-left: 10px;
+  }
+
+  /* damage-resistance row — three columns: label, track, value */
+  .dr-row {
+    display: grid;
+    grid-template-columns: 72px 1fr 44px;
+    align-items: center;
+    gap: 10px;
+  }
+  .dr-track {
+    position: relative;
+    height: 8px;
+    background: var(--color-surface0);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .dr-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    background: rgba(203, 166, 247, 0.55);
+    border-radius: var(--radius-sm);
+  }
+  .dr-fill.accent-sky {
+    box-shadow: inset 0 0 0 1px var(--color-sky);
+  }
+  .dr-fill.accent-peach {
+    box-shadow: inset 0 0 0 1px var(--color-peach);
+  }
+}

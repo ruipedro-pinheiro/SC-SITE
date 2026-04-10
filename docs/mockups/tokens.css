@@ -1,0 +1,440 @@
+/* ============================================================
+   sc-site — design tokens
+   ------------------------------------------------------------
+   Single source of truth for every visual value used in the
+   mockups (and, in Phase 4, the shipped React components).
+
+   Read MOCKUP.md before editing. Every token here is chosen to
+   implement §7 (typography + spacing), §8 (color), §9 (motion),
+   and the "calm and deliberate" principle from §1.
+
+   All values are exposed as CSS custom properties on :root and
+   are mirrored into Tailwind's config at the bottom of this file
+   via a small JS snippet that can be pasted into an HTML <script>
+   tag (same pattern as docs/mockup.html uses today).
+
+   PHASE 4 PORT NOTE
+   -----------------
+   When this file is ported into the production app these values
+   should land in a Tailwind v4 `@theme { ... }` block (not the
+   legacy v3 `theme.extend` JS config you see at the bottom of
+   this file). Tailwind v4 reads `@theme` directly from CSS, so
+   the names below map almost 1:1 — `--color-mauve` becomes the
+   v4 design token `--color-mauve`, exposed as `bg-mauve`,
+   `text-mauve`, etc.
+
+   COMPONENT-CLASS PORT NOTE
+   -------------------------
+   The custom utility classes the mockups define inline
+   (`.src-dot`, `.panel`, `.dr-row`, `.tab`, `.hp-dot`,
+   `.hist-row`) should migrate to a `@layer components { ... }`
+   block in the production globals.css so Tailwind's purge keeps
+   them and so they sit in the correct cascade order between
+   `@layer base` and `@layer utilities`. They are *components*,
+   not utilities — they encapsulate a multi-property visual
+   pattern, not a single property.
+
+   Rules of thumb when adding a value:
+     - 4 px base grid; never eyeball a 3 px or 5 px gap.
+     - Catppuccin Mocha only; no extra palette.
+     - One easing curve (--ease-deliberate). No bouncy springs.
+     - 180 ms is the default transition unless the interaction
+       explicitly asks for more (panel fades = 220 ms, reflow
+       = 600 ms, camera dolly = 900 ms).
+   ============================================================ */
+
+:root {
+
+  /* ----------------------------------------------------------
+     1. color — catppuccin mocha (full palette)
+     ----------------------------------------------------------
+     The role table in MOCKUP.md §8 is the contract. Each token
+     below carries a short comment describing its sanctioned use
+     so later agents don't reach for the wrong hue.
+
+     IMPORTANT: less than 8% of any screen may be mauve. Mauve is
+     an accent, not a fill. Use surface0/mantle for backgrounds.
+  ---------------------------------------------------------- */
+
+  /* base layers — page backgrounds and panels */
+  --color-base:      #1e1e2e; /* default page background            */
+  --color-mantle:    #181825; /* panels, raised surfaces            */
+  --color-crust:     #11111b; /* canvas clear color, deepest bg     */
+
+  /* surfaces — borders, hairlines, subtle fills */
+  --color-surface0:  #313244; /* default hairline border            */
+  --color-surface1:  #45475a; /* focused / active border            */
+  --color-surface2:  #585b70; /* strongest border (rarely used)     */
+
+  /* overlays — tertiary text, meta, disabled */
+  --color-overlay0:  #6c7086; /* tertiary text, hint text, meta     */
+  --color-overlay1:  #7f849c; /* avoid — too close to overlay0      */
+  --color-overlay2:  #9399b2; /* reserved                           */
+
+  /* text — body copy hierarchy */
+  --color-subtext0:  #a6adc8; /* secondary text                     */
+  --color-subtext1:  #bac2de; /* muted body text                    */
+  --color-text:      #cdd6f4; /* primary body text                  */
+
+  /* accents — mauve is THE primary accent */
+  --color-rosewater: #f5e0dc;
+  --color-flamingo:  #f2cdcd;
+  --color-pink:      #f5c2e7;
+  --color-mauve:     #cba6f7; /* accent: links, active, focus, lamp */
+  --color-red:       #f38ba8; /* destructive only — never decorative*/
+  --color-maroon:    #eba0ac;
+  --color-peach:     #fab387; /* aUEC prices, warning states        */
+  --color-yellow:    #f9e2af; /* special: only the Stanton sun      */
+  --color-green:     #a6e3a1; /* profit / "in stock" on trade page  */
+  --color-teal:      #94e2d5;
+  --color-sky:       #89dceb; /* secondary accent: info, sky rim    */
+  --color-sapphire:  #74c7ec;
+  --color-blue:      #89b4fa; /* special: only Nyx system star      */
+  --color-lavender:  #b4befe;
+
+  /* semantic border roles — the three border "levels" */
+  --color-border-default: var(--color-surface0);
+  --color-border-hover:   var(--color-surface1);
+  --color-border-focus:   var(--color-mauve);
+
+  /* ----------------------------------------------------------
+     2. typography — fonts + type scale
+     ----------------------------------------------------------
+     Per MOCKUP.md §7. Inter is the UI font, JetBrains Mono is
+     reserved for numbers and codes, Orbitron is the display
+     face for ship names and page titles on the hangar scene.
+  ---------------------------------------------------------- */
+
+  --font-sans:    'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --font-display: 'Orbitron', 'Inter', ui-sans-serif, sans-serif;
+
+  /* ----- type scale (rem values relative to 16 px root) -----
+     Format: --text-<px-size> : <rem>;
+     Comments document px equivalents and intended role.      */
+  --text-10: 0.625rem;  /* 10 px — micro / kbd / meta           */
+  --text-11: 0.6875rem; /*  11 px — label caps                   */
+  --text-12: 0.75rem;   /*  12 px — secondary UI text            */
+  --text-13: 0.8125rem; /*  13 px — body-small, mono data        */
+  --text-14: 0.875rem;  /*  14 px — default UI body              */
+  --text-15: 0.9375rem; /*  15 px — body long-form               */
+  --text-16: 1rem;      /*  16 px — h4, prominent labels         */
+  --text-18: 1.125rem;  /*  18 px — small headers                */
+  --text-22: 1.375rem;  /*  22 px — h3                           */
+  --text-28: 1.75rem;   /*  28 px — sub-title                    */
+  --text-32: 2rem;      /*  32 px — h2                           */
+  --text-40: 2.5rem;    /*  40 px — large display                */
+  --text-48: 3rem;      /*  48 px — ship name hero               */
+  --text-56: 3.5rem;    /*  56 px — page title                   */
+  --text-72: 4.5rem;    /*  72 px — reserved hero                */
+  --text-88: 5.5rem;    /*  88 px — max hero (MOCKUP.md §7 top)  */
+
+  /* ----- weights ----- */
+  --weight-regular:  400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+
+  /* ----- line heights (unitless so they compose with size) */
+  --leading-tight:  0.95;
+  --leading-snug:   1.15;
+  --leading-normal: 1.4;
+  --leading-body:   1.55;
+
+  /* ----- tracking (letter-spacing). NOTHING above 0.06em.
+     The old site's tracking-[0.18em] hacker caps are BANNED. */
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0;
+  --tracking-label:  0.04em;
+  --tracking-micro:  0.06em;
+
+  /* ----------------------------------------------------------
+     3. spacing — 4 px base scale
+     ----------------------------------------------------------
+     Index follows Tailwind (n * 4 px = n px * 0.25rem).
+     Default gap between sections on a page = --space-24 (96 px).
+     Default padding inside a panel = --space-6 (24 px).
+  ---------------------------------------------------------- */
+
+  --space-0:  0;
+  --space-1:  0.25rem; /*   4 px — hairline padding            */
+  --space-2:  0.5rem;  /*   8 px — tight gap                   */
+  --space-3:  0.75rem; /*  12 px — chip vertical padding       */
+  --space-4:  1rem;    /*  16 px — default gap                 */
+  --space-5:  1.25rem; /*  20 px                                */
+  --space-6:  1.5rem;  /*  24 px — panel internal padding      */
+  --space-8:  2rem;    /*  32 px                                */
+  --space-10: 2.5rem;  /*  40 px                                */
+  --space-12: 3rem;    /*  48 px                                */
+  --space-16: 4rem;    /*  64 px — top-bar vertical offset     */
+  --space-20: 5rem;    /*  80 px                                */
+  --space-24: 6rem;    /*  96 px — default section gap         */
+  --space-32: 8rem;    /* 128 px                                */
+  --space-48: 12rem;   /* 192 px                                */
+  --space-64: 16rem;   /* 256 px                                */
+  --space-96: 24rem;   /* 384 px                                */
+
+  /* ----------------------------------------------------------
+     4. radii — sharp-but-not-square corners (MOCKUP.md §7)
+     ----------------------------------------------------------
+     No rounded-full anywhere. No rounded-2xl. Linear's quiet
+     comes from 4–8 px corners; 14 px is only for big drawers.
+  ---------------------------------------------------------- */
+
+  --radius-sm:   2px;  /* hairline inputs, chip close buttons  */
+  --radius-md:   4px;  /* default — inputs, chips, tabs        */
+  --radius-lg:   6px;  /* panels over canvas                   */
+  --radius-xl:   8px;  /* drawers, command palette             */
+  --radius-2xl: 14px;  /* big modal-ish drawers (rare)         */
+
+  /* ----------------------------------------------------------
+     5. borders — hairline culture
+     ----------------------------------------------------------
+     1 px borders are the site's default. MOCKUP.md §7 rule:
+     "borders are barely there". Thicker borders (2 px) are
+     reserved for focus state only.
+  ---------------------------------------------------------- */
+
+  --border-hairline: 1px;   /* default (surface0)                */
+  --border-1:        1px;   /* alias, for JSX readability        */
+  --border-2:        2px;   /* focus ring thickness              */
+
+  /* a specific gradient hairline used at the top of focused
+     panels. A single linear-gradient, fading over 200 ms, is the
+     only "gradient" allowed in the whole DOM per MOCKUP.md §8. */
+  --hairline-gradient:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(203, 166, 247, 0.55),
+      transparent
+    );
+
+  /* ----------------------------------------------------------
+     6. motion — one easing, a handful of durations
+     ----------------------------------------------------------
+     §9 is explicit: cubic-bezier(0.2, 0.8, 0.2, 1) and nothing
+     else. No springs, no overshoots, no "delight".
+  ---------------------------------------------------------- */
+
+  --duration-120: 120ms;  /* tooltip fade, clipboard flash       */
+  --duration-180: 180ms;  /* default transition                   */
+  --duration-200: 200ms;  /* §8 rule 4 — focused-panel hairline   */
+  --duration-220: 220ms;  /* panel opacity fade-in                */
+  --duration-400: 400ms;  /* GLB cross-fade on upgrade            */
+  --duration-600: 600ms;  /* reflow, camera neighbour skip        */
+  --duration-900: 900ms;  /* camera dolly-in to hero              */
+
+  --ease-deliberate: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ----------------------------------------------------------
+     7. layout constants used in the mockups
+     ----------------------------------------------------------
+     Widths / heights that recur across files. Keeping them here
+     means the ship-detail drawer and the hangar search bar move
+     together when we tune the system.
+  ---------------------------------------------------------- */
+
+  --width-search:       520px; /* hangar top-centre input        */
+  --width-history-drawer: 360px; /* ship-detail right drawer      */
+  --width-popover:      300px; /* chip-builder popover (§5.2)    */
+  --height-chip:         28px; /* query-rail chip height         */
+  --height-top-bar:      64px; /* top chrome row                 */
+
+  /* ----------------------------------------------------------
+     8. z-index ladder
+     ---------------------------------------------------------- */
+  --z-canvas:   0;
+  --z-overlay: 10;  /* DOM layer for canvas-adjacent overlays    */
+  --z-labels:  20;  /* DOM ship labels layered over the canvas   */
+  --z-chrome:  30;  /* search bar, query rail, nav               */
+  --z-panel:   40;  /* side panels and drawers                   */
+  --z-popover: 50;  /* chip-builder, ⌘K palette                  */
+}
+
+/* ============================================================
+   9. global resets that every mockup expects
+   ------------------------------------------------------------
+   Keeping these here (instead of inside each mockup's <style>)
+   ensures hangar.html and ship-detail.html feel like siblings of
+   docs/mockup.html. Anything broader than this belongs in the
+   production app's globals.css, not here.
+   ============================================================ */
+
+/* §8 colour role table:
+   - crust  = canvas clear colour ONLY (the three.js renderer
+              clears to crust so the WebGL viewport disappears
+              into the page edges).
+   - base   = default DOM page background, used everywhere a
+              non-canvas page would render.
+   The mockups are full-bleed canvas pages, so the crust shows
+   through; on a 2D page (e.g. /weapons reference list) the
+   body's base colour wins. */
+html {
+  background: var(--color-crust);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+body {
+  background: var(--color-base);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* universal focus ring — 2 px mauve, 1 px offset.
+   Never set outline: none anywhere downstream; override with
+   :focus-visible instead if a specific element wants custom
+   treatment. */
+:focus-visible {
+  outline: var(--border-2) solid var(--color-mauve);
+  outline-offset: 1px;
+  border-radius: var(--radius-md);
+}
+
+/* the hairline that appears at the top of a focused panel.
+   Used by both hangar.html (search bar) and ship-detail.html
+   (all orbiting stat panels). */
+.panel-hairline {
+  background: var(--hairline-gradient);
+  height: 1px;
+}
+
+/* ship label style — DOM elements layered over the three.js
+   canvas, positioned each frame via vector3.project(). The JSX
+   port in Phase 4 keeps these class names, so the style lives
+   here, not inside each mockup's inline <style>. */
+.ship-label {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  font-size: var(--text-11);
+  letter-spacing: var(--tracking-label);
+  color: var(--color-subtext1);
+  text-align: center;
+  line-height: 1.3;
+  white-space: nowrap;
+  transition: opacity var(--duration-220) var(--ease-deliberate);
+}
+.ship-label .name {
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+}
+.ship-label .meta {
+  color: var(--color-overlay0);
+  font-size: var(--text-10);
+  letter-spacing: var(--tracking-micro);
+  text-transform: uppercase;
+}
+.ship-label .underline {
+  margin: 4px auto 0;
+  width: 18px;
+  height: 1px;
+  background: var(--color-mauve);
+  opacity: 0.6;
+}
+
+/* ============================================================
+   10. tailwind config snippet (paste into an HTML <script>)
+   ------------------------------------------------------------
+   The mockups load Tailwind from the CDN (same as
+   docs/mockup.html). Because CDN Tailwind reads its config from
+   `window.tailwind.config` at load time, each mockup's <head>
+   contains a <script> block that registers this config BEFORE
+   the Tailwind script tag loads.
+
+   We duplicate the values here rather than trying to read CSS
+   variables at config time because CDN Tailwind evaluates the
+   config synchronously before any CSS is parsed — the variables
+   aren't resolvable yet. Keep this block in sync with the :root
+   above whenever a token changes.
+   ============================================================ */
+
+/*
+
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            mono:    ['"JetBrains Mono"', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+            display: ['Orbitron', 'Inter', 'ui-sans-serif', 'sans-serif'],
+          },
+          fontSize: {
+            '10': ['0.625rem',  { lineHeight: '1.4'  }],
+            '11': ['0.6875rem', { lineHeight: '1.4'  }],
+            '12': ['0.75rem',   { lineHeight: '1.45' }],
+            '13': ['0.8125rem', { lineHeight: '1.5'  }],
+            '14': ['0.875rem',  { lineHeight: '1.55' }],
+            '15': ['0.9375rem', { lineHeight: '1.55' }],
+            '16': ['1rem',      { lineHeight: '1.5'  }],
+            '22': ['1.375rem',  { lineHeight: '1.2'  }],
+            '32': ['2rem',      { lineHeight: '1.15' }],
+            '48': ['3rem',      { lineHeight: '1.0'  }],
+            '56': ['3.5rem',    { lineHeight: '1.0'  }],
+          },
+          colors: {
+            // catppuccin mocha — full palette
+            base:      '#1e1e2e',
+            mantle:    '#181825',
+            crust:     '#11111b',
+            surface0:  '#313244',
+            surface1:  '#45475a',
+            surface2:  '#585b70',
+            overlay0:  '#6c7086',
+            overlay1:  '#7f849c',
+            overlay2:  '#9399b2',
+            subtext0:  '#a6adc8',
+            subtext1:  '#bac2de',
+            text:      '#cdd6f4',
+            rosewater: '#f5e0dc',
+            flamingo:  '#f2cdcd',
+            pink:      '#f5c2e7',
+            mauve:     '#cba6f7',
+            red:       '#f38ba8',
+            maroon:    '#eba0ac',
+            peach:     '#fab387',
+            yellow:    '#f9e2af',
+            green:     '#a6e3a1',
+            teal:      '#94e2d5',
+            sky:       '#89dceb',
+            sapphire:  '#74c7ec',
+            blue:      '#89b4fa',
+            lavender:  '#b4befe',
+          },
+          borderRadius: {
+            sm:  '2px',
+            md:  '4px',
+            lg:  '6px',
+            xl:  '8px',
+            '2xl': '14px',
+          },
+          letterSpacing: {
+            tightx: '-0.02em',
+            label:  '0.04em',
+            micro:  '0.06em',
+          },
+          transitionDuration: {
+            '120': '120ms',
+            '180': '180ms',
+            '220': '220ms',
+            '400': '400ms',
+            '600': '600ms',
+            '900': '900ms',
+          },
+          transitionTimingFunction: {
+            deliberate: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+          },
+          // 4 px grid mirrors MOCKUP.md §7 spacing scale. Tailwind's
+          // default already matches (space-1 = 4 px, space-24 = 96 px),
+          // so there's no override here — listed as a comment for
+          // future auditors.
+        },
+      },
+    };
+  </script>
+
+*/

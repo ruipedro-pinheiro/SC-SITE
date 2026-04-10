@@ -1,0 +1,32 @@
+{
+  "name": "@sc-site/sc-data",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./fetchers": "./src/fetchers/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./transform": "./src/transform/index.ts",
+    "./loaders": "./src/loaders/index.ts",
+    "./orchestrator/refresh-uex-vehicles": "./src/orchestrator/refresh-uex-vehicles.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "refresh:uex-vehicles": "bun run scripts/refresh-uex-vehicles.ts"
+  },
+  "dependencies": {
+    "@sc-site/db": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21",
+    "typescript": "5.7.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sc-site — hangar</title>
+
+<!-- ─── design tokens (canonical) ──────────────────────────────────────── -->
+<link rel="stylesheet" href="./tokens.css" />
+
+<!-- ─── tailwind CDN + config (mirrors tokens.css) ─────────────────────── -->
+<!-- CDN tailwind reads window.tailwind.config at load time, so this block -->
+<!-- MUST sit above the <script src="…tailwindcss.com"> line. Keep in sync -->
+<!-- with tokens.css §10 whenever a token value changes.                    -->
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+          display: ['Orbitron', 'Inter', 'ui-sans-serif', 'sans-serif'],
+        },
+        colors: {
+          base:      '#1e1e2e',
+          mantle:    '#181825',
+          crust:     '#11111b',
+          surface0:  '#313244',
+          surface1:  '#45475a',
+          surface2:  '#585b70',
+          overlay0:  '#6c7086',
+          overlay1:  '#7f849c',
+          subtext0:  '#a6adc8',
+          subtext1:  '#bac2de',
+          text:      '#cdd6f4',
+          mauve:     '#cba6f7',
+          sky:       '#89dceb',
+          peach:     '#fab387',
+          green:     '#a6e3a1',
+          red:       '#f38ba8',
+          lavender:  '#b4befe',
+          yellow:    '#f9e2af',
+        },
+        borderRadius: {
+          sm: '2px', md: '4px', lg: '6px', xl: '8px',
+        },
+        letterSpacing: {
+          tightx: '-0.02em',
+          label:  '0.04em',
+          micro:  '0.06em',
+        },
+        transitionDuration: {
+          '120': '120ms', '180': '180ms', '220': '220ms',
+          '400': '400ms', '600': '600ms', '900': '900ms',
+        },
+        transitionTimingFunction: {
+          deliberate: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        },
+      },
+    },
+  };
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- ─── fonts: Inter (UI), JetBrains Mono (data), Orbitron (display) ───── -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- ─── three.js via importmap (matches docs/mockup.html) ──────────────── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js"
+  }
+}
+</script>
+
+<style>
+  /* -------- source badge dot --------------------------------------------
+     The 4 px coloured dot beside each query chip's 2-letter source code,
+     per MOCKUP.md §5.1 "small and dignified, not a traffic-light badge". */
+  .src-dot {
+    width: 4px; height: 4px; border-radius: 9999px; flex-shrink: 0;
+  }
+
+  /* -------- ship label variations ---------------------------------------
+     The meta line under the label shows mono data (the chip's active
+     filter value for that ship), per §5.6 "mono under their name". */
+  .ship-label .stat {
+    color: var(--color-subtext0);
+    font-family: var(--font-mono);
+    font-size: var(--text-10);
+    letter-spacing: 0;
+    margin-top: 2px;
+  }
+</style>
+</head>
+<body class="font-sans antialiased overflow-hidden bg-base text-text">
+
+<!-- §11 bans animated DOM starfields. The previous static-radial-gradient -->
+<!-- "starfield" was deleted in iteration 1: the 3D scene already carries  -->
+<!-- the atmosphere through fog + low-key lighting, the DOM should not     -->
+<!-- compete with it.                                                      -->
+
+<!-- ═══ full-bleed three.js canvas — the page IS the scene ═══════════════ -->
+<canvas id="hangar" class="fixed inset-0 block w-full h-full" style="z-index: 0;"></canvas>
+
+<!-- DOM ship labels, positioned each frame via vector3.project() -->
+<div id="labels" class="fixed inset-0 pointer-events-none" style="z-index: 20;"></div>
+
+<!-- ═══ top-left: back is "hangar" (we're already home) ══════════════════ -->
+<!-- The header is intentionally empty. No wordmark, no brand, no nav. The -->
+<!-- bottom-right text nav is the entire menu.                             -->
+
+<!-- ═══ top-right: ⌘K jump-to prompt ═════════════════════════════════════ -->
+<div class="fixed top-10 right-10 flex items-center gap-2 text-[11px] tracking-micro text-overlay0 select-none" style="z-index: 30;">
+  <span>jump to</span>
+  <kbd class="px-1.5 py-0.5 text-10 font-mono border border-surface0 rounded-sm text-subtext0">⌘ K</kbd>
+</div>
+
+<!-- ═══ top-centre: dual-mode search bar ═════════════════════════════════ -->
+<!-- Short mode: ship name fuzzy-match. Long mode (≥3 words, or any of     -->
+<!-- `≥ < @ :` / the word "and"): NL parser that emits chips into the rail -->
+<!-- below. Mauve hairline above signals "this field is active".           -->
+<div
+  class="fixed top-10 left-1/2 -translate-x-1/2"
+  style="z-index: 30; width: var(--width-search); max-width: calc(100vw - 3rem);"
+>
+  <div class="relative">
+    <input
+      type="text"
+      placeholder="ship name, or: quantum tank ≥ 50k, STV-capable, buy @ orison"
+      class="w-full bg-mantle/70 backdrop-blur-md border border-surface0
+             rounded-md px-5 py-3 text-14 text-text placeholder:text-overlay0
+             focus:border-surface1 focus:bg-mantle/90 transition-colors duration-180 ease-deliberate"
+    />
+    <!-- Per §8 rule 4: a 1 px linear-gradient hairline at the *top edge of  -->
+    <!-- the focused panel*, fading in over 200 ms. The "panel" the search  -->
+    <!-- bar belongs to is the NL-mode chip preview area BELOW the input,   -->
+    <!-- so the hairline sits at the bottom edge of the input (= top edge   -->
+    <!-- of the NL preview surface). In Phase 4 it is wired to .is-nl-mode  -->
+    <!-- and animates opacity 0 → 1 over var(--duration-200) when the input -->
+    <!-- transitions into long mode (§5.3). Static here in the mockup.      -->
+    <div class="panel-hairline absolute inset-x-6 -bottom-px is-nl-mode"></div>
+  </div>
+</div>
+
+<!-- ═══ query rail: composable cross-source filter chips (MOCKUP.md §5.1) ═ -->
+<!-- Each chip carries a tiny source-coloured dot + 2-letter badge. Chips  -->
+<!-- are AND by default; shift-click fuses two chips into an OR pill.      -->
+<!-- The `+ add` button opens the chip-builder popover (§5.2).             -->
+<div
+  class="fixed top-28 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+  style="z-index: 30;"
+>
+  <div class="flex items-center gap-1.5 flex-wrap justify-center">
+
+    <!-- chip 1 — quantum tank threshold, from SPViewer -->
+    <span class="flex items-center gap-2 pl-2.5 pr-3 py-1.5 text-12 text-mauve border border-mauve/50 bg-mauve/[0.06] rounded-md transition-colors duration-180 ease-deliberate">
+      <span class="src-dot bg-peach"></span>
+      <span class="text-overlay0 text-10 font-mono">SP</span>
+      <span>quantum tank ≥ 50k</span>
+      <span class="text-overlay0 ml-1 hover:text-text cursor-pointer">×</span>
+    </span>
+
+    <!-- chip 2 — vehicle bay fits STV, from FleetYards -->
+    <span class="flex items-center gap-2 pl-2.5 pr-3 py-1.5 text-12 text-mauve border border-mauve/50 bg-mauve/[0.06] rounded-md transition-colors duration-180 ease-deliberate">
+      <span class="src-dot bg-sky"></span>
+      <span class="text-overlay0 text-10 font-mono">FY</span>
+      <span>STV-capable</span>
+      <span class="text-overlay0 ml-1 hover:text-text cursor-pointer">×</span>
+    </span>
+
+    <!-- chip 3 — station availability, from Cornerstone -->
+    <span class="flex items-center gap-2 pl-2.5 pr-3 py-1.5 text-12 text-mauve border border-mauve/50 bg-mauve/[0.06] rounded-md transition-colors duration-180 ease-deliberate">
+      <span class="src-dot bg-green"></span>
+      <span class="text-overlay0 text-10 font-mono">CS</span>
+      <span>buyable @ orison</span>
+      <span class="text-overlay0 ml-1 hover:text-text cursor-pointer">×</span>
+    </span>
+
+    <!-- chip 4 — price cap, from UEX -->
+    <span class="flex items-center gap-2 pl-2.5 pr-3 py-1.5 text-12 text-mauve border border-mauve/50 bg-mauve/[0.06] rounded-md transition-colors duration-180 ease-deliberate">
+      <span class="src-dot bg-mauve"></span>
+      <span class="text-overlay0 text-10 font-mono">UEX</span>
+      <span>≤ 2.5M aUEC</span>
+      <span class="text-overlay0 ml-1 hover:text-text cursor-pointer">×</span>
+    </span>
+
+    <!-- + add — opens chip-builder popover. Solid 1 px surface0 border:
+         dashed reads as "placeholder/draft", but `+ add` is a real,
+         shippable affordance. -->
+    <button
+      class="px-3 py-1.5 text-12 text-subtext0 border border-surface0
+             hover:border-surface1 hover:text-text
+             rounded-md transition-colors duration-180 ease-deliberate"
+    >+ add</button>
+
+    <!-- save / share — icon-only, sit on the right side of the chip rail
+         next to `+ add` per §5.4. Each is a tiny inline SVG, 14 × 14 px,
+         currentColor, with a hover transition into mauve so the
+         clipboard-copy flash on `share` reuses the same colour. -->
+    <button
+      title="save query"
+      class="p-1.5 text-subtext0 hover:text-mauve transition-colors duration-180 ease-deliberate"
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2.5 2.5h7.5l2 2v7.5a.5.5 0 0 1-.5.5H2.5a.5.5 0 0 1-.5-.5V3a.5.5 0 0 1 .5-.5z"/>
+        <path d="M4 2.5v3.5h5V2.5"/>
+        <path d="M4 12.5V8.5h6v4"/>
+      </svg>
+    </button>
+    <button
+      title="share query (copies URL)"
+      class="p-1.5 text-subtext0 hover:text-mauve transition-colors duration-180 ease-deliberate"
+    >
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="11" cy="3"  r="1.6"/>
+        <circle cx="3"  cy="7"  r="1.6"/>
+        <circle cx="11" cy="11" r="1.6"/>
+        <path d="M4.4 6.2 9.6 3.8"/>
+        <path d="M4.4 7.8 9.6 10.2"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- match count -->
+  <div class="text-10 tracking-micro text-subtext0">
+    <span class="text-text font-semibold">4</span> MATCH
+  </div>
+</div>
+
+<!-- ═══ ship labels (positioned by JS) — authored here so the page is     -->
+<!--     still readable without JS. Wire-up happens in the <script> below. -->
+
+<!-- ═══ bottom-left interaction hint ════════════════════════════════════ -->
+<div
+  class="fixed bottom-8 left-10 text-10 tracking-micro text-overlay0 select-none"
+  style="z-index: 30;"
+>
+  4 OF 6 SHIPS MATCH · DRAG TO PAN · SCROLL TO DOLLY · CLICK TO INSPECT
+</div>
+
+<!-- ═══ bottom-right text nav — the entire menu ═════════════════════════ -->
+<nav
+  class="fixed bottom-8 right-10 flex items-center gap-5 text-12 text-subtext0 select-none"
+  style="z-index: 30;"
+>
+  <a href="./hangar.html"      class="text-mauve">hangar</a>
+  <a href="#"                  class="hover:text-text transition-colors duration-180 ease-deliberate">map</a>
+  <a href="#"                  class="hover:text-text transition-colors duration-180 ease-deliberate">trade</a>
+  <a href="#"                  class="hover:text-text transition-colors duration-180 ease-deliberate">mining</a>
+  <a href="#"                  class="hover:text-text transition-colors duration-180 ease-deliberate">weapons</a>
+  <a href="#"                  class="hover:text-text transition-colors duration-180 ease-deliberate">components</a>
+</nav>
+
+<!-- ═══ three.js scene ═══════════════════════════════════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+
+/* ─── ship roster — real SC ships at real relative scale ────────────────
+   Dimensions are from the RSI ship matrix (length in metres), rounded.
+   `scale` is relative to an eye-baseline where a Cutlass Black (38 m)
+   is ~1.4 so that the Aurora reads as tiny and the Polaris reads as huge.
+   `x` positions the ship along the hangar deck (world-space metres).
+   The four ships that MATCH the query rail above are marked `matching:
+   true` — the other two are mid-reflow: their meshes drift 8 world
+   units up out of frame, opacity drops to 0.25, the mauve EdgesGeometry
+   overlay is dropped, and their DOM labels are stripped, so the still
+   frame physicalises §3's "cross-source query as a reflow of the room"
+   without animating it. */
+const SHIPS = [
+  { slug: 'aurora-mr',     name: 'AURORA MR',          mfr: 'RSI',   length: 18.5,  scale: 0.55, x: -26, matching: false, stat: null,          tint: 0xb4befe },
+  { slug: 'cutlass-black', name: 'CUTLASS BLACK',      mfr: 'DRAKE', length: 38,    scale: 1.1,  x: -14, matching: false, stat: null,          tint: 0xcba6f7 },
+  { slug: 'corsair',       name: 'CORSAIR',            mfr: 'DRAKE', length: 64.5,  scale: 1.55, x:  -2, matching: true,  stat: '61 k units',  tint: 0xcba6f7 },
+  { slug: 'constellation-taurus', name: 'CONSTELLATION TAURUS', mfr: 'RSI', length: 69, scale: 1.65, x: 11, matching: true, stat: '58 k units', tint: 0xb4befe },
+  { slug: 'carrack',       name: 'CARRACK',            mfr: 'ANVIL', length: 126.5, scale: 2.05, x:  26, matching: true,  stat: '74 k units',  tint: 0x89dceb },
+  { slug: 'msr',           name: 'MSR',                mfr: 'CRUS',  length: 76,    scale: 1.7,  x:  41, matching: true,  stat: '52 k units',  tint: 0xb4befe },
+];
+
+const canvas      = document.getElementById('hangar');
+const labelsRoot  = document.getElementById('labels');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.setClearColor(0x11111b, 1);
+
+const scene  = new THREE.Scene();
+scene.fog    = new THREE.Fog(0x11111b, 34, 110);
+
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(0, 6.5, 30);
+camera.lookAt(0, 1.2, 0);
+
+/* ─── lighting: mauve-dominant point lights, sky rim, low ambient ──────
+   Matches MOCKUP.md §10 "hangar architecture" + §8 rule 2 (mauve primary
+   light, sky secondary rim). Kept slightly dimmer than mockup.html so the
+   Polaris-tier big ship doesn't wash out. */
+scene.add(new THREE.AmbientLight(0xcba6f7, 0.1));
+
+const ceilA = new THREE.PointLight(0xcba6f7, 65, 60, 1.6);
+ceilA.position.set(-18, 10, 4); scene.add(ceilA);
+
+const ceilB = new THREE.PointLight(0xcba6f7, 80, 70, 1.6);
+ceilB.position.set(  8, 10, 4); scene.add(ceilB);
+
+/* Sky-coloured rim point light along the back-right of the hangar.
+   Dropped from intensity 35 → 12 in iteration 1: at 35 the rim was
+   bright enough to read as a colour wash on the right-hand ships,
+   competing with the dominant mauve. 12 is a quiet hint. */
+const ceilC = new THREE.PointLight(0x89dceb, 12, 70, 1.8);
+ceilC.position.set( 32,  9, -6); scene.add(ceilC);
+
+const rim = new THREE.DirectionalLight(0x89dceb, 0.28);
+rim.position.set(-10, 6, -8); scene.add(rim);
+
+/* ─── hangar architecture: polished floor + pillars + ceiling cables ──── */
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x181825, metalness: 0.9, roughness: 0.4,
+});
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(260, 80), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -2;
+scene.add(floor);
+
+/* §10 calls for "polished metal floor reflecting mauve point lights",
+   not a debug grid. The previous GridHelper read as a CAD reference
+   plane and broke the "private hangar bay at 3 a.m." mood. The floor's
+   metalness 0.9 + roughness 0.4 + the three ceiling point lights do
+   the scale-reading job by reflection alone. */
+
+/* instanced pillars along the back of the hangar */
+const pillarGeo = new THREE.BoxGeometry(1.4, 14, 1.4);
+const pillarMat = new THREE.MeshStandardMaterial({
+  color: 0x11111b, metalness: 0.6, roughness: 0.5,
+});
+const pillarCount = 12;
+const pillars = new THREE.InstancedMesh(pillarGeo, pillarMat, pillarCount);
+const dummy = new THREE.Object3D();
+for (let i = 0; i < pillarCount; i++) {
+  dummy.position.set(-55 + i * 10, 5, -18);
+  dummy.updateMatrix();
+  pillars.setMatrixAt(i, dummy.matrix);
+}
+scene.add(pillars);
+
+/* thin ceiling cable lines */
+const cableMat = new THREE.LineBasicMaterial({ color: 0x313244, transparent: true, opacity: 0.55 });
+for (const z of [0, -4, -8]) {
+  const g = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-70, 11, z),
+    new THREE.Vector3( 70, 11, z),
+  ]);
+  scene.add(new THREE.Line(g, cableMat));
+}
+
+/* ─── placeholder ship builder — the day-1 fallback (MOCKUP.md §10) ───
+   Each ship is a small composition of primitives sized to the ship's
+   real length. The mauve EdgesGeometry overlay (applied to *every*
+   child mesh, per §9, not just the hull) gives the "spec sketch" look.
+
+   §8 rule 5 — "no glows". The previous version stuck a MeshBasicMaterial
+   disc behind each engine nozzle to fake a glow; that is exactly the
+   "cheap cousin of light" the spec forbids. Real engines now read via a
+   tiny PointLight at the nozzle position (intensity 0.3, distance 4):
+   the surrounding accent material picks the light up and shows a real
+   highlight. The hull/accent materials carry NO emissive contribution. */
+function buildShip(spec) {
+  const group = new THREE.Group();
+  const matching = spec.matching;
+  const opacity = matching ? 1.0 : 0.25;
+
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x313244, metalness: 0.55, roughness: 0.45,
+    emissive: 0x000000, emissiveIntensity: 0,
+    transparent: !matching, opacity,
+  });
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: 0x45475a, metalness: 0.7, roughness: 0.4,
+    emissive: 0x000000, emissiveIntensity: 0,
+    transparent: !matching, opacity,
+  });
+
+  /* hull — the main fuselage */
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.05, 2.0), bodyMat);
+  group.add(hull);
+
+  /* cockpit wedge */
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.65, 1.35), bodyMat);
+  nose.position.set(-3.0, 0.22, 0);
+  group.add(nose);
+
+  /* wings */
+  const wing = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 4.0), accentMat);
+  wing.position.set(0.6, -0.1, 0);
+  group.add(wing);
+
+  /* engines — three nozzles, real lighting only */
+  const engGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.9, 12);
+  const enginePositions = [
+    [3.0,  0.30,  0.9],
+    [3.0,  0.30, -0.9],
+    [3.0, -0.38,  0  ],
+  ];
+  for (const [x, y, z] of enginePositions) {
+    const e = new THREE.Mesh(engGeo, accentMat);
+    e.rotation.z = Math.PI / 2;
+    e.position.set(x, y, z);
+    group.add(e);
+
+    /* §8 rule 5 — engines read by reflected light, not glow stickers.
+       A 0.3-intensity mauve point light at the nozzle picks out the
+       accent metal around it. Distance 4 keeps the cone tight so it
+       doesn't bleed onto neighbouring ships. Only on matching ships
+       (non-matching ones are mid-reflow and read as background). */
+    if (matching) {
+      const nozzleLight = new THREE.PointLight(0xcba6f7, 0.3, 4, 2.0);
+      nozzleLight.position.set(x + 0.55, y, z);
+      group.add(nozzleLight);
+    }
+  }
+
+  /* mauve edge overlay — applied to EVERY child mesh, not just the hull.
+     §9: thin EdgesGeometry overlay on each ship gives the "spec sketch"
+     signature. Walking children means wings, nose, and engines all get
+     the same hairline treatment. Edges only render on matching ships;
+     non-matching ones drop the overlay so the eye doesn't follow them. */
+  if (matching) {
+    const lineMat = new THREE.LineBasicMaterial({
+      color: 0xcba6f7, transparent: true, opacity: 0.35,
+    });
+    /* snapshot the children list because we're about to mutate it */
+    const meshChildren = group.children.filter(c => c.isMesh);
+    for (const child of meshChildren) {
+      const eg = new THREE.EdgesGeometry(child.geometry, 18);
+      const ls = new THREE.LineSegments(eg, lineMat);
+      ls.position.copy(child.position);
+      ls.rotation.copy(child.rotation);
+      ls.scale.copy(child.scale);
+      group.add(ls);
+    }
+  }
+
+  group.scale.setScalar(spec.scale);
+  /* §3: non-matching ships are *leaving* — drift 8 world units up so
+     the still-frame reads as "these are reflowing out", not "these are
+     dimmed background props". Their label is also stripped (see below)
+     so the eye binds the upward drift to "no longer in this query". */
+  const baseY = 0.2 + spec.scale * 0.3;
+  group.position.set(spec.x, matching ? baseY : baseY + 8, 0);
+  group.rotation.y = -0.35 + (spec.x * 0.004);
+  return group;
+}
+
+const shipMeshes = SHIPS.map(spec => {
+  const m = buildShip(spec);
+  scene.add(m);
+  return { spec, group: m };
+});
+
+/* ─── DOM labels for each ship ──────────────────────────────────────────
+   Built once, repositioned each frame via vector3.project().
+   Non-matching ships are mid-reflow (drifting 8 world units up); the
+   spec calls for them to drop their label entirely so the still-frame
+   reads as "these are leaving". The label root for non-matching ships
+   stays in the array as `null` so the per-frame projection loop knows
+   to skip them. */
+const labelEls = SHIPS.map(spec => {
+  if (!spec.matching) return null;
+  const el = document.createElement('div');
+  el.className = 'ship-label';
+  const statLine = spec.stat
+    ? `<div class="stat">${spec.stat}</div>`
+    : '';
+  el.innerHTML = `
+    <div class="meta">${spec.mfr}</div>
+    <div class="name">${spec.name}</div>
+    <div class="underline"></div>
+    ${statLine}
+  `;
+  labelsRoot.appendChild(el);
+  return el;
+});
+
+/* ─── drag-to-pan + scroll-to-dolly ──────────────────────────────────── */
+let camOffsetX = 0;
+let camOffsetXTarget = 0;
+let camDistance = 30;
+let camDistanceTarget = 30;
+
+let isDragging = false;
+let dragStartX = 0;
+let dragStartOffset = 0;
+
+canvas.addEventListener('pointerdown', (e) => {
+  isDragging = true;
+  dragStartX = e.clientX;
+  dragStartOffset = camOffsetXTarget;
+  canvas.style.cursor = 'grabbing';
+});
+window.addEventListener('pointerup', () => {
+  isDragging = false;
+  canvas.style.cursor = 'grab';
+});
+window.addEventListener('pointermove', (e) => {
+  if (!isDragging) return;
+  const dx = (e.clientX - dragStartX) / window.innerWidth;
+  camOffsetXTarget = dragStartOffset - dx * 70;
+  camOffsetXTarget = Math.max(-35, Math.min(45, camOffsetXTarget));
+});
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camDistanceTarget = Math.max(16, Math.min(52, camDistanceTarget + e.deltaY * 0.025));
+}, { passive: false });
+canvas.style.cursor = 'grab';
+
+/* ─── render loop ──────────────────────────────────────────────────────
+   Idle sway + per-ship breathing + label projection. `prefers-reduced-
+   motion: reduce` disables the idle sway per MOCKUP.md §9. */
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const tmp = new THREE.Vector3();
+const t0 = performance.now();
+
+function frame() {
+  const t = (performance.now() - t0) * 0.001;
+
+  camOffsetX   += (camOffsetXTarget - camOffsetX)   * 0.08;
+  camDistance  += (camDistanceTarget - camDistance) * 0.08;
+
+  /* §9: idle camera drift is a 0.06 rad/s yaw sway around the hangar
+     deck centre. No lateral position bob, no y-axis bob, no per-ship
+     rotation. The room is still; only the camera's *look angle*
+     breathes. This is the "private hangar bay at 3 a.m." reading. */
+  camera.position.x = camOffsetX;
+  camera.position.y = 6.5;
+  camera.position.z = camDistance;
+  camera.lookAt(camOffsetX, 1.5, 0);
+  camera.rotation.y += reduced ? 0 : Math.sin(t * 0.06) * 0.04;
+
+  /* Ships are static in the wide overview. Per §3 the ship-level
+     turntable rotation only kicks in when a ship is hero-posed (the
+     ship-detail view). Here, no per-ship rotation, no per-ship bob —
+     the previous "breathing" was contaminating the still-frame read. */
+
+  /* project world → screen for the DOM labels (matching ships only) */
+  for (let i = 0; i < shipMeshes.length; i++) {
+    const el = labelEls[i];
+    if (!el) continue; /* non-matching ships have no label */
+    const { group, spec } = shipMeshes[i];
+    tmp.copy(group.position);
+    tmp.y += 1.7 * spec.scale + 0.6;
+    tmp.project(camera);
+    const sx = (tmp.x * 0.5 + 0.5) * window.innerWidth;
+    const sy = (-tmp.y * 0.5 + 0.5) * window.innerHeight;
+    const inFront = tmp.z < 1;
+    el.style.left = `${sx}px`;
+    el.style.top  = `${sy}px`;
+    el.style.opacity = inFront ? '1' : '0';
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+
+/* ─── responsive resize ─────────────────────────────────────────────── */
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>

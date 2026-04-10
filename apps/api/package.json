@@ -1,0 +1,31 @@
+{
+  "name": "@sc-site/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/app.ts",
+  "exports": {
+    ".": "./src/app.ts",
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "dev": "bun --hot run src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "0.4.2",
+    "@sc-site/db": "workspace:*",
+    "drizzle-orm": "0.45.2",
+    "hono": "4.6.14",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.2.21",
+    "typescript": "5.7.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

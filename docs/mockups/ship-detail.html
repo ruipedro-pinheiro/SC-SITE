@@ -1,0 +1,839 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>sc-site — carrack</title>
+
+<!-- ─── design tokens ──────────────────────────────────────────────────── -->
+<link rel="stylesheet" href="./tokens.css" />
+
+<!-- ─── tailwind CDN + config (mirrors tokens.css) ─────────────────────── -->
+<script>
+  window.tailwind = window.tailwind || {};
+  window.tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans:    ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          mono:    ['"JetBrains Mono"', 'ui-monospace', 'SF Mono', 'Menlo', 'monospace'],
+          display: ['Orbitron', 'Inter', 'ui-sans-serif', 'sans-serif'],
+        },
+        colors: {
+          base:      '#1e1e2e',
+          mantle:    '#181825',
+          crust:     '#11111b',
+          surface0:  '#313244',
+          surface1:  '#45475a',
+          surface2:  '#585b70',
+          overlay0:  '#6c7086',
+          overlay1:  '#7f849c',
+          subtext0:  '#a6adc8',
+          subtext1:  '#bac2de',
+          text:      '#cdd6f4',
+          mauve:     '#cba6f7',
+          sky:       '#89dceb',
+          peach:     '#fab387',
+          green:     '#a6e3a1',
+          red:       '#f38ba8',
+          lavender:  '#b4befe',
+        },
+        borderRadius: {
+          sm: '2px', md: '4px', lg: '6px', xl: '8px',
+        },
+        letterSpacing: {
+          tightx: '-0.02em',
+          label:  '0.04em',
+          micro:  '0.06em',
+        },
+        transitionDuration: {
+          '120': '120ms', '180': '180ms', '220': '220ms',
+          '400': '400ms', '600': '600ms', '900': '900ms',
+        },
+        transitionTimingFunction: {
+          deliberate: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        },
+      },
+    },
+  };
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<!-- ─── fonts ──────────────────────────────────────────────────────────── -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Orbitron:wght@500;600;700&display=swap"
+  rel="stylesheet"
+/>
+
+<!-- ─── three.js ───────────────────────────────────────────────────────── -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js"
+  }
+}
+</script>
+
+<style>
+  /* §11 bans animated DOM starfields. The previous static-radial-gradient
+     "starfield" was deleted in iteration 1: the 3D scene already carries
+     the atmosphere through fog + low-key lighting, the DOM should not
+     compete with it. */
+
+  /* hardpoint dot — a 6 px mauve circle positioned over the mesh.
+     Per MOCKUP.md §3 the real positions come from Vector3.project() on
+     hardpoint xyz offsets; in the mockup we place them by CSS percentage
+     against the canvas so the visual grammar is already committed.
+
+     §8 rule 5 ("no glows") + §9 ("no scale on hover") — the dot is a
+     flat 6 px circle, no box-shadow halo, no transform on hover.
+     Hover changes only the alpha (0.7 → 1.0). */
+  .hp-dot {
+    position: absolute;
+    width: 6px; height: 6px;
+    border-radius: 9999px;
+    background: rgba(203, 166, 247, 0.70);
+    transform: translate(-50%, -50%);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: background var(--duration-180) var(--ease-deliberate);
+  }
+  .hp-dot:hover,
+  .hp-dot.is-hovered { background: rgba(203, 166, 247, 1.0); }
+  .hp-dot.muted      { background: rgba(166, 173, 200, 0.30); }
+  .hp-dot.muted:hover { background: rgba(166, 173, 200, 0.55); }
+
+  /* hardpoint hover callout — replaces native title="" tooltips per
+     §11 ("no tooltips on everything"). A thin hairline extends from the
+     dot to the side, terminating in a small inline panel that uses the
+     same panel-hairline gradient + mantle/70 surface as the orbiting
+     stat panels. The mockup shows ONE hardpoint statically hovered so
+     the visual contract is already on the page. */
+  .hp-callout {
+    position: absolute;
+    transform: translate(0, -50%);
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hp-callout .leader {
+    width: 56px; height: 1px;
+    /* shares the §8 rule 4 hairline gradient (transparent → mauve →
+       transparent) so the dot-to-callout connector reads as part of
+       the same hairline grammar as the panel-hairline top edges. */
+    background: var(--hairline-gradient);
+  }
+  .hp-callout .body {
+    background: rgba(24, 24, 37, 0.78);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--color-surface0);
+    border-radius: var(--radius-md);
+    padding: 8px 12px;
+    min-width: 168px;
+    position: relative;
+  }
+  .hp-callout .body::before {
+    content: "";
+    position: absolute;
+    left: 8px; right: 8px; top: -1px; height: 1px;
+    background: var(--hairline-gradient);
+  }
+
+  /* panel — the top-left / bottom-left / bottom-right orbit cards.
+     In prod these are anchored via vector3.project(); in the mockup they
+     are fixed-position. Shared treatment: mantle/70 + backdrop-blur, 1 px
+     surface0 border, a panel-hairline along the top edge. */
+  .panel {
+    background: rgba(24, 24, 37, 0.72);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--color-surface0);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    position: relative;
+  }
+  .panel::before {
+    content: "";
+    position: absolute;
+    left: var(--space-6); right: var(--space-6);
+    top: -1px; height: 1px;
+    background: var(--hairline-gradient);
+  }
+
+  /* damage-resistance strip row */
+  .dr-row { display: grid; grid-template-columns: 72px 1fr 44px; align-items: center; gap: 10px; }
+  .dr-track {
+    position: relative;
+    height: 8px;
+    background: var(--color-surface0);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+  .dr-fill {
+    position: absolute; inset: 0 auto 0 0;
+    background: rgba(203, 166, 247, 0.55);
+    border-radius: var(--radius-sm);
+  }
+  .dr-fill.accent-sky   { box-shadow: inset 0 0 0 1px var(--color-sky);   }
+  .dr-fill.accent-peach { box-shadow: inset 0 0 0 1px var(--color-peach); }
+
+  /* table rows — Stripe-style dense data list */
+  .row { display: flex; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--color-surface0); }
+  .row:last-child { border-bottom: none; }
+  .row .k { flex: 1; color: var(--color-subtext0); font-size: var(--text-13); }
+  .row .v { color: var(--color-text); font-family: var(--font-mono); font-size: var(--text-13); }
+  .row .src { color: var(--color-overlay0); font-family: var(--font-mono); font-size: var(--text-10); margin-left: 10px; }
+
+  /* tab row */
+  .tab {
+    padding: 8px 14px;
+    font-size: var(--text-12);
+    color: var(--color-subtext0);
+    letter-spacing: var(--tracking-label);
+    text-transform: lowercase;
+    border-bottom: 1px solid transparent;
+    cursor: pointer;
+    transition: color var(--duration-180) var(--ease-deliberate),
+                border-color var(--duration-180) var(--ease-deliberate);
+  }
+  .tab:hover { color: var(--color-text); }
+  .tab.active {
+    color: var(--color-text);
+    border-bottom-color: var(--color-mauve);
+  }
+
+  /* history drawer row */
+  .hist-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--color-surface0);
+  }
+  .hist-row:last-child { border-bottom: none; }
+</style>
+</head>
+<body class="font-sans antialiased overflow-hidden bg-base text-text">
+
+<!-- ═══ the focused three.js canvas — same scene as hangar, re-posed ═════ -->
+<canvas id="viewer" class="fixed inset-0 block w-full h-full" style="z-index: 0;"></canvas>
+
+<!-- ═══ hardpoint markers layer ════════════════════════════════════════════
+     CSS-positioned for the mockup. In prod these come from vector3.project()
+     on hardpoint xyz offsets (MOCKUP.md §3). The seven dots below match the
+     canonical Carrack hardpoint set the brief calls out:
+       2 × S4 nose      (manned remote)
+       1 × S5 dorsal    (manned turret, top)
+       1 × S5 belly     (remote turret, bottom)
+       1 × S4 missile   (single rack on the spine)
+       2 × S3 chin      (pilot fixed, NOT wing — Carrack has no wing mounts)
+     The combat panel enumeration agrees with this set field-for-field. -->
+<div id="hardpoints" class="fixed inset-0 pointer-events-none" style="z-index: 20;">
+  <!-- 2 × S4 nose, manned remote -->
+  <div class="hp-dot" style="left: 41%;   top: 41%;"></div>
+  <div class="hp-dot" style="left: 44.5%; top: 40%;"></div>
+  <!-- 1 × S5 dorsal manned turret (top of bridge) -->
+  <div class="hp-dot is-hovered" id="hp-demo" style="left: 52%; top: 33%;"></div>
+  <!-- 1 × S5 belly remote turret -->
+  <div class="hp-dot muted" style="left: 52%; top: 59%;"></div>
+  <!-- 1 × S4 missile rack (single dorsal rack) -->
+  <div class="hp-dot muted" style="left: 49%; top: 47%;"></div>
+  <!-- 2 × S3 chin pilot guns (under nose, fixed) -->
+  <div class="hp-dot" style="left: 42%; top: 49%;"></div>
+  <div class="hp-dot" style="left: 44%; top: 49%;"></div>
+
+  <!-- panel-hairline callout for the dorsal mount (statically "hovered"
+       in the mockup so the §11-compliant interaction is visible). In
+       Phase 4 the callout follows the .hp-dot.is-hovered selector and
+       fades in over var(--duration-200). Replaces the previous native
+       title="" tooltips. -->
+  <div class="hp-callout" style="left: calc(52% + 8px); top: 33%;">
+    <div class="leader"></div>
+    <div class="body">
+      <div class="text-10 tracking-micro text-overlay0 uppercase">S5 · dorsal manned</div>
+      <div class="font-mono text-13 text-text mt-1">Behring M7A</div>
+      <div class="font-mono text-11 text-subtext0 mt-0.5">
+        <span class="text-overlay0">DPS</span> 1 540
+        <span class="text-overlay0 ml-2">ER</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ top-left: back to hangar ═════════════════════════════════════════ -->
+<a
+  href="./hangar.html"
+  class="fixed top-10 left-10 text-12 text-subtext0 hover:text-mauve transition-colors duration-180 ease-deliberate"
+  style="z-index: 30;"
+>← back to hangar</a>
+
+<!-- ═══ top-right: ⌘K ════════════════════════════════════════════════════ -->
+<div
+  class="fixed top-10 right-10 flex items-center gap-2 text-11 tracking-micro text-overlay0 select-none"
+  style="z-index: 30;"
+>
+  <span>jump to</span>
+  <kbd class="px-1.5 py-0.5 text-10 font-mono border border-surface0 rounded-sm text-subtext0">⌘ K</kbd>
+</div>
+
+<!-- ═══ IDENTITY panel — top-left, floats over the canvas ════════════════
+     §4: top-left orbits the hero ship. The previous version split the
+     ship name into a top-centre header and put a thin "identity meta"
+     card below it; the result read as a dashboard admin UI. This panel
+     is now self-contained: ship name, manufacturer, role, dimensions
+     row, SCU, crew, MSRP/purchase/store URL — everything you need to
+     know "what is this ship" in one card. The orbitron ship name lives
+     here at 28 px (smaller than the previous 48 px because it sits
+     inside a panel rather than as a banner).
+
+     Phase-4 anchor: this panel's CSS-fixed position becomes a
+     vector3.project() world anchor pinned to a point above the bow of
+     the ship; on focus the .panel-hairline at top edge fades in over
+     200 ms via the .is-focused state. -->
+<aside
+  class="fixed left-10 panel is-focused"
+  style="top: 96px; width: 320px; z-index: 40;"
+>
+  <div class="text-10 tracking-micro text-overlay0 uppercase">Anvil Aerospace</div>
+  <h1
+    class="font-display text-[28px] font-semibold text-text leading-none mt-1.5"
+    style="letter-spacing: -0.01em;"
+  >CARRACK</h1>
+
+  <div class="mt-2 text-11 text-subtext0 tracking-label uppercase">
+    exploration <span class="text-overlay0 mx-1.5">·</span> large
+  </div>
+
+  <!-- dimensions row -->
+  <div class="mt-4 flex items-center gap-3 font-mono text-11 text-subtext1 flex-wrap">
+    <span><span class="text-overlay0">L</span> 126.5 m</span>
+    <span class="text-overlay0">·</span>
+    <span><span class="text-overlay0">B</span> 76.5 m</span>
+    <span class="text-overlay0">·</span>
+    <span><span class="text-overlay0">H</span> 29.5 m</span>
+    <span class="text-overlay0">·</span>
+    <span><span class="text-overlay0">M</span> 4 600 t</span>
+  </div>
+
+  <div class="mt-4" style="border-top: 1px solid var(--color-surface0);"></div>
+
+  <div class="row">
+    <span class="k">SCU</span>
+    <span class="v">456</span>
+    <span class="src">WK</span>
+  </div>
+  <div class="row">
+    <span class="k">crew</span>
+    <span class="v">5 + 1 gunner</span>
+    <span class="src">UEX</span>
+  </div>
+  <div class="row">
+    <span class="k">MSRP</span>
+    <span class="v text-peach">2 350 000 aUEC</span>
+    <span class="src">UEX</span>
+  </div>
+  <div class="row">
+    <span class="k">buy @ Orison</span>
+    <span class="v text-peach">2 350 000</span>
+    <span class="src">CS</span>
+  </div>
+  <div class="row">
+    <span class="k">pledge</span>
+    <span class="v">$600</span>
+    <span class="src">RSI</span>
+  </div>
+
+  <a
+    href="https://robertsspaceindustries.com/pledge/ships/anvil-carrack/Carrack"
+    class="mt-3 inline-flex items-center gap-1.5 text-11 text-subtext0 hover:text-mauve transition-colors duration-180 ease-deliberate"
+  >
+    robertsspaceindustries.com
+    <span aria-hidden="true">↗</span>
+  </a>
+</aside>
+
+<!-- ═══ COMBAT panel — bottom-right, slid LEFT to clear history drawer ════
+     §4 puts COMBAT bottom-right; the §11 ban on tabs (and the brief's
+     "the 4 combat panel tabs are NOT in §4 — delete them") means the
+     combat | mobility | dimensions | economy tab strip is gone. The
+     panel is now a single unified card.
+
+     Position: the history drawer is flush right at width
+     var(--width-history-drawer) (= 360 px). The combat panel slides
+     left by that width + a 16 px gutter so the two don't overlap. In
+     the production layout this is the slid-left state of the panel
+     when the drawer is expanded; the collapsed state would put the
+     panel back at right: 40 px.
+
+     Hardpoint enumeration matches the .hp-dot layer field-for-field:
+       2 × S3 chin   (pilot fixed)
+       2 × S4 nose   (manned remote)
+       1 × S5 dorsal (manned)
+       1 × S5 belly  (remote)
+       1 × S4 rack   (missile)
+     The Carrack has NO wing hardpoints — pilot guns are chin/nose,
+     not wings. The previous mockup's "WINGS-FIXED · 2 × M3A Laser
+     Cannon" rows are gone. -->
+<aside
+  class="fixed panel"
+  style="bottom: 64px; right: calc(var(--width-history-drawer) + 56px); width: 320px; z-index: 40;"
+>
+  <div class="text-10 tracking-micro text-overlay0 uppercase mb-4">combat</div>
+
+  <div class="row">
+    <span class="k">shield HP</span>
+    <span class="v">552 000</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">hull HP (fwd)</span>
+    <span class="v">18 750</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">pilot guns</span>
+    <span class="v">2 × S3 chin</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">nose turrets</span>
+    <span class="v">2 × S4 remote</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">dorsal turret</span>
+    <span class="v">1 × S5 manned</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">belly turret</span>
+    <span class="v">1 × S5 remote</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">missiles</span>
+    <span class="v">1 × S4 rack</span>
+    <span class="src">ER</span>
+  </div>
+
+  <!-- damage-resistance strip — MOCKUP.md §4 Extension 1 -->
+  <div class="mt-4 pt-4" style="border-top: 1px solid var(--color-surface0);">
+    <div class="text-10 tracking-micro text-overlay0 uppercase mb-3">damage resistance</div>
+
+    <!-- physical: weakest → peach accent -->
+    <div class="dr-row mb-2">
+      <div class="text-10 tracking-label text-overlay0 uppercase">physical</div>
+      <div class="dr-track"><div class="dr-fill accent-peach" style="width: 42%;"></div></div>
+      <div class="text-11 font-mono text-subtext0 text-right">0.72</div>
+    </div>
+
+    <!-- distortion: mid -->
+    <div class="dr-row mb-2">
+      <div class="text-10 tracking-label text-overlay0 uppercase">distortion</div>
+      <div class="dr-track"><div class="dr-fill" style="width: 58%;"></div></div>
+      <div class="text-11 font-mono text-subtext0 text-right">0.94</div>
+    </div>
+
+    <!-- energy: strong → sky accent -->
+    <div class="dr-row mb-2">
+      <div class="text-10 tracking-label text-overlay0 uppercase">energy</div>
+      <div class="dr-track"><div class="dr-fill accent-sky" style="width: 81%;"></div></div>
+      <div class="text-11 font-mono text-subtext0 text-right">1.38</div>
+    </div>
+
+    <!-- thermal: strongest → sky accent -->
+    <div class="dr-row mb-2">
+      <div class="text-10 tracking-label text-overlay0 uppercase">thermal</div>
+      <div class="dr-track"><div class="dr-fill accent-sky" style="width: 89%;"></div></div>
+      <div class="text-11 font-mono text-subtext0 text-right">1.55</div>
+    </div>
+
+    <!-- biochemical: second-weakest → peach accent -->
+    <div class="dr-row">
+      <div class="text-10 tracking-label text-overlay0 uppercase">biochem</div>
+      <div class="dr-track"><div class="dr-fill accent-peach" style="width: 48%;"></div></div>
+      <div class="text-11 font-mono text-subtext0 text-right">0.80</div>
+    </div>
+
+    <div class="mt-3 text-10 text-overlay0 leading-snug">
+      hover a row to list the 4 components contributing most to that resistance.
+    </div>
+  </div>
+</aside>
+
+<!-- ═══ LOGISTICS panel — bottom-left, replaces the loadout browser ══════
+     §4 mandates LOGISTICS at bottom-left, NOT a loadout browser. The
+     loadout-mounted-weapons drill-down lives in the future
+     /loadout/[slug] page (§4 "Optional extension"). Bottom-left here
+     is the "what does this ship CARRY and HOW FAR can it GO" card:
+     SCU, crew range, quantum range, fuel + hydrogen tanks, tractor
+     range. -->
+<aside
+  class="fixed left-10 panel"
+  style="bottom: 64px; width: 320px; z-index: 40;"
+>
+  <div class="text-10 tracking-micro text-overlay0 uppercase mb-4">logistics</div>
+
+  <div class="row">
+    <span class="k">cargo grid</span>
+    <span class="v">456 SCU</span>
+    <span class="src">WK</span>
+  </div>
+  <div class="row">
+    <span class="k">crew</span>
+    <span class="v">1 – 6</span>
+    <span class="src">UEX</span>
+  </div>
+  <div class="row">
+    <span class="k">quantum range</span>
+    <span class="v">63.6 Gm</span>
+    <span class="src">SP</span>
+  </div>
+  <div class="row">
+    <span class="k">quantum fuel</span>
+    <span class="v">8 100 µSCU</span>
+    <span class="src">SP</span>
+  </div>
+  <div class="row">
+    <span class="k">hydrogen tank</span>
+    <span class="v">198 000 L</span>
+    <span class="src">SP</span>
+  </div>
+  <div class="row">
+    <span class="k">tractor range</span>
+    <span class="v">35 m</span>
+    <span class="src">ER</span>
+  </div>
+  <div class="row">
+    <span class="k">vehicle bay</span>
+    <span class="v">Ursa / PTV</span>
+    <span class="src">FY</span>
+  </div>
+</aside>
+
+<!-- ═══ HISTORY drawer — flush right edge ════════════════════════════════
+     §4 says the drawer is flush against the right edge of the canvas,
+     collapsed by default as a single trigger line, expanding upward
+     into a vertical timeline of patches in which this ship changed.
+
+     The mockup renders BOTH states for the reviewers:
+       (a) the collapsed trigger as a small standalone pill near the
+           top of the right edge, AND
+       (b) the expanded drawer below it (the production "click-to-
+           expand" target state).
+     The combat panel sits in its slid-left position to clear the
+     drawer, exactly as it would when the user has just expanded it. -->
+
+<!-- (a) collapsed trigger — a one-liner the user clicks to expand -->
+<aside
+  class="fixed panel"
+  style="top: 96px; right: 0; width: var(--width-history-drawer); z-index: 39;
+         border-right: none; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+>
+  <button
+    type="button"
+    class="w-full flex items-center justify-between text-left"
+  >
+    <div class="flex items-baseline gap-2">
+      <span class="text-13 text-subtext1">history</span>
+      <span class="text-overlay0 text-12">·</span>
+      <span class="text-12 text-overlay0">12 changes across 4 patches</span>
+    </div>
+    <span class="text-overlay0 text-12" aria-hidden="true">▾</span>
+  </button>
+</aside>
+
+<!-- (b) expanded drawer — the target state once the trigger is clicked -->
+<section
+  class="fixed panel"
+  style="bottom: 64px; right: 0; width: var(--width-history-drawer); z-index: 38;
+         border-right: none; border-top-right-radius: 0; border-bottom-right-radius: 0;"
+>
+  <div class="flex items-center justify-between mb-3">
+    <div class="flex items-baseline gap-2">
+      <span class="text-13 text-subtext1">history</span>
+      <span class="text-overlay0 text-12">·</span>
+      <span class="text-12 text-overlay0">12 changes</span>
+    </div>
+    <span class="text-overlay0 text-12" aria-hidden="true">▴</span>
+  </div>
+
+  <!-- category filter chips — 24 px tall, match query-rail chip style -->
+  <div class="flex items-center gap-1.5 flex-wrap mb-4">
+    <span class="px-2 py-0.5 text-10 text-mauve border border-mauve/40 bg-mauve/[0.06] rounded-sm">combat</span>
+    <span class="px-2 py-0.5 text-10 text-mauve border border-mauve/40 bg-mauve/[0.06] rounded-sm">mobility</span>
+    <span class="px-2 py-0.5 text-10 text-mauve border border-mauve/40 bg-mauve/[0.06] rounded-sm">economy</span>
+    <span class="px-2 py-0.5 text-10 text-subtext0 border border-surface0 rounded-sm">cosmetic</span>
+  </div>
+
+  <!-- 3 latest patch rows -->
+  <div class="hist-row">
+    <div>
+      <div class="font-mono text-13 text-subtext1">4.7.0-LIVE.11576750</div>
+      <div class="text-12 text-subtext0 mt-0.5 leading-snug">
+        shield HP +5 % · cargo −2 SCU · skin IAE-2953
+      </div>
+    </div>
+    <div class="text-overlay0 text-11 font-mono whitespace-nowrap pl-3">2026-03-15</div>
+  </div>
+
+  <div class="hist-row">
+    <div>
+      <div class="font-mono text-13 text-subtext1">4.6.3-LIVE.11421118</div>
+      <div class="text-12 text-subtext0 mt-0.5 leading-snug">
+        quantum fuel +15 % · SCM 82 → 88 m/s · dorsal turret gimbal-capable
+      </div>
+    </div>
+    <div class="text-overlay0 text-11 font-mono whitespace-nowrap pl-3">2026-02-02</div>
+  </div>
+
+  <div class="hist-row">
+    <div>
+      <div class="font-mono text-13 text-subtext1">4.6.1-LIVE.11308455</div>
+      <div class="text-12 text-subtext0 mt-0.5 leading-snug">
+        quantum fuel −15 % · vehicle bay doors rework
+      </div>
+    </div>
+    <div class="text-overlay0 text-11 font-mono whitespace-nowrap pl-3">2025-12-19</div>
+  </div>
+</section>
+
+<!-- ═══ bottom-centre: prev / next ship cycle row ═════════════════════════
+     §4 mandates this row at the bottom of the detail view; the previous
+     mockup omitted it. 11 px subtext0 + a `·` separator, no chrome.
+     Pressing ← / → in Phase 4 cycles the camera to the neighbour ship
+     within the current query. -->
+<div
+  class="fixed left-1/2 -translate-x-1/2 text-11 text-subtext0 select-none flex items-center gap-3"
+  style="bottom: 24px; z-index: 30;"
+>
+  <a href="#" class="hover:text-text transition-colors duration-180 ease-deliberate">← prev (MSR)</a>
+  <span class="text-overlay0">·</span>
+  <span class="text-overlay0">ESC to close</span>
+  <span class="text-overlay0">·</span>
+  <a href="#" class="hover:text-text transition-colors duration-180 ease-deliberate">next (CONSTELLATION) →</a>
+</div>
+
+<!-- ═══ bottom-right text nav — restored from `display: none` ═════════════
+     §6 says this row is the entire navigation surface. The previous
+     mockup hid it because the combat panel sat at right: 40 px and
+     collided with it. The combat panel now lives slid-left to clear
+     the history drawer, so the bottom-right corner is free again.
+     Collapsed to three links (hangar · map · ⌘K more) per the brief
+     to keep the corner quiet next to the history drawer's right edge. -->
+<nav
+  class="fixed flex items-center gap-5 text-12 text-subtext0 select-none"
+  style="bottom: 24px; right: calc(var(--width-history-drawer) + 24px); z-index: 30;"
+>
+  <a href="./hangar.html" class="hover:text-text transition-colors duration-180 ease-deliberate">hangar</a>
+  <a href="#"             class="hover:text-text transition-colors duration-180 ease-deliberate">map</a>
+  <span class="flex items-center gap-1.5">
+    <kbd class="px-1.5 py-0.5 text-10 font-mono border border-surface0 rounded-sm text-subtext0">⌘ K</kbd>
+    <span class="text-overlay0">more</span>
+  </span>
+</nav>
+
+<!-- ═══ three.js: Carrack hero-pose placeholder mesh ═════════════════════ -->
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('viewer');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight, false);
+renderer.setClearColor(0x11111b, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x11111b, 30, 110);
+
+const camera = new THREE.PerspectiveCamera(32, window.innerWidth / window.innerHeight, 0.1, 400);
+camera.position.set(0, 5, 24);
+camera.lookAt(0, 0.5, 0);
+
+/* ─── lighting: mauve dominant, sky rim, a touch warmer than hangar ─── */
+scene.add(new THREE.AmbientLight(0xcba6f7, 0.14));
+
+const keyLight = new THREE.PointLight(0xcba6f7, 90, 60, 1.6);
+keyLight.position.set(-10, 9, 6);
+scene.add(keyLight);
+
+const fillLight = new THREE.PointLight(0xcba6f7, 40, 60, 1.8);
+fillLight.position.set(12, 7, 5);
+scene.add(fillLight);
+
+const rim = new THREE.DirectionalLight(0x89dceb, 0.32);
+rim.position.set(-8, 4, -10);
+scene.add(rim);
+
+/* ─── floor — same polished hangar floor as the wide hangar scene ─── */
+const floorMat = new THREE.MeshStandardMaterial({
+  color: 0x181825, metalness: 0.9, roughness: 0.42,
+});
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(120, 60), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -3.2;
+scene.add(floor);
+
+/* §10: "polished metal floor reflecting mauve point lights" — no
+   debug grid. The floor's metalness 0.9 + the three.js point lights
+   give the scale reading by reflection alone. */
+
+/* ─── Carrack proxy mesh ────────────────────────────────────────────────
+   Silhouette built from primitives sized to a ~125 m explorer: long
+   central hull, dorsal superstructure, 4 main engines + 2 outriggers.
+   Replaced by a real GLB (`carrack.glb`) once one is extracted per the
+   pipeline in MOCKUP.md §10. Mauve EdgesGeometry overlay gives it the
+   spec-sketch signature.                                                */
+const ship = new THREE.Group();
+
+/* §8 rule 5 — no glows. The previous mockup gave bodyMat a mauve
+   emissive at 0.05; even at low intensity that emissive bypasses the
+   scene lighting and reads as a faint self-glow. emissive is now
+   pinned at black across all materials and the keyLight + fillLight
+   pair carries the actual mauve illumination. */
+const bodyMat = new THREE.MeshStandardMaterial({
+  color: 0x1e1e2e, metalness: 0.7, roughness: 0.42,
+  emissive: 0x000000, emissiveIntensity: 0,
+});
+const accentMat = new THREE.MeshStandardMaterial({
+  color: 0x45475a, metalness: 0.75, roughness: 0.4,
+  emissive: 0x000000, emissiveIntensity: 0,
+});
+const warmMat = new THREE.MeshStandardMaterial({
+  color: 0x585b70, metalness: 0.65, roughness: 0.45,
+  emissive: 0x000000, emissiveIntensity: 0,
+});
+
+/* main hull — long spine */
+const hull = new THREE.Mesh(new THREE.BoxGeometry(12.0, 1.4, 2.6), bodyMat);
+ship.add(hull);
+
+/* nose: narrower wedge */
+const nose = new THREE.Mesh(new THREE.BoxGeometry(3.0, 1.1, 1.8), bodyMat);
+nose.position.set(-7.0, -0.1, 0);
+ship.add(nose);
+
+/* dorsal superstructure — the sensor/habitat stack */
+const dorsal = new THREE.Mesh(new THREE.BoxGeometry(5.4, 1.0, 1.8), warmMat);
+dorsal.position.set(-0.8, 1.0, 0);
+ship.add(dorsal);
+
+/* bridge — small cube atop the dorsal */
+const bridge = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.55, 1.2), accentMat);
+bridge.position.set(-1.6, 1.8, 0);
+ship.add(bridge);
+
+/* dorsal turret mount */
+const turretDrum = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.45, 0.45, 0.4, 14),
+  accentMat
+);
+turretDrum.position.set(1.8, 1.7, 0);
+ship.add(turretDrum);
+const turretBarrel = new THREE.Mesh(
+  new THREE.BoxGeometry(1.0, 0.18, 0.18),
+  accentMat
+);
+turretBarrel.position.set(2.4, 1.82, 0);
+ship.add(turretBarrel);
+
+/* belly turret — remote, mounted below */
+const bellyDrum = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.36, 0.36, 0.3, 12),
+  accentMat
+);
+bellyDrum.position.set(1.2, -0.95, 0);
+ship.add(bellyDrum);
+
+/* wing outriggers carrying engines */
+const wingL = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.35, 0.8), accentMat);
+wingL.position.set(2.0, -0.25,  2.0);
+ship.add(wingL);
+const wingR = wingL.clone();
+wingR.position.set(2.0, -0.25, -2.0);
+ship.add(wingR);
+
+/* 4 main engines — rear of hull. §8 rule 5: NO glow discs. The engines
+   read by reflection from a tiny PointLight at each nozzle (intensity
+   0.4, distance 5) — real lighting picks up the surrounding accent
+   metal, no MeshBasicMaterial fakery. */
+const engGeo = new THREE.CylinderGeometry(0.55, 0.55, 1.3, 16);
+const engPositions = [
+  [5.5,  0.55,  0.8],
+  [5.5,  0.55, -0.8],
+  [5.5, -0.55,  0.8],
+  [5.5, -0.55, -0.8],
+];
+for (const [x, y, z] of engPositions) {
+  const m = new THREE.Mesh(engGeo, accentMat);
+  m.rotation.z = Math.PI / 2;
+  m.position.set(x, y, z);
+  ship.add(m);
+
+  const nozzleLight = new THREE.PointLight(0xcba6f7, 0.4, 5, 2.0);
+  nozzleLight.position.set(x + 0.7, y, z);
+  ship.add(nozzleLight);
+}
+
+/* outrigger engines — smaller, mounted on wing tips */
+const outGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.85, 12);
+for (const z of [2.0, -2.0]) {
+  const m = new THREE.Mesh(outGeo, accentMat);
+  m.rotation.z = Math.PI / 2;
+  m.position.set(3.8, -0.25, z);
+  ship.add(m);
+
+  const nozzleLight = new THREE.PointLight(0x89dceb, 0.3, 4, 2.0);
+  nozzleLight.position.set(4.4, -0.25, z);
+  ship.add(nozzleLight);
+}
+
+/* §9 thin EdgesGeometry overlay on EVERY child mesh, not just hull +
+   dorsal + nose. Walking the whole ship group means bridge, turret
+   drums, barrels, wings, engines all carry the spec-sketch hairline.
+   The previous version cherry-picked three meshes which left the
+   bridge / turret / wing / engine silhouettes feeling unfinished. */
+const lineMat = new THREE.LineBasicMaterial({
+  color: 0xcba6f7, transparent: true, opacity: 0.38,
+});
+const meshChildren = ship.children.filter(c => c.isMesh);
+for (const child of meshChildren) {
+  const eg = new THREE.EdgesGeometry(child.geometry, 18);
+  const ls = new THREE.LineSegments(eg, lineMat);
+  ls.position.copy(child.position);
+  ls.rotation.copy(child.rotation);
+  ls.scale.copy(child.scale);
+  ship.add(ls);
+}
+
+ship.scale.setScalar(0.82);
+ship.position.set(0, 0.2, 0);
+ship.rotation.y = -0.52;
+scene.add(ship);
+
+/* ─── render loop ─── */
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function frame() {
+  /* §9: hero pose is STILL. The previous version added a sin-driven
+     y-bob and x-bob to the camera which read as a "floating dolly"
+     and pulled focus from the ship's own slow turntable. Hero pose
+     gets exactly one motion: the ship's 0.08 rad/s self-rotation. */
+  if (!reduced) ship.rotation.y += 0.0013;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+frame();
+
+window.addEventListener('resize', () => {
+  renderer.setSize(window.innerWidth, window.innerHeight, false);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+</body>
+</html>
