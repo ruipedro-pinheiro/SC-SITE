@@ -1,6 +1,6 @@
 "use client";
 
-import { ContactShadows, Environment, OrbitControls } from "@react-three/drei";
+import { Environment, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
 import { Bloom, EffectComposer, SMAA, ToneMapping } from "@react-three/postprocessing";
 import { BlendFunction, ToneMappingMode } from "postprocessing";
@@ -82,15 +82,15 @@ export function ShipViewer3D({
         {/* HDRI environment — gives us real reflections on the metallic hull */}
         <Environment preset="warehouse" background={false} environmentIntensity={0.85} />
 
-        {/* Contact shadow to ground the ship visually */}
-        <ContactShadows
-          position={[0, -2.2, 0]}
-          opacity={0.55}
-          scale={12}
-          blur={2.5}
-          far={4}
-          resolution={1024}
-          color="#11111b"
+        {/* Deep-space starfield */}
+        <Stars
+          radius={80}
+          depth={40}
+          count={4000}
+          factor={3.5}
+          saturation={0}
+          fade
+          speed={0.3}
         />
 
         <Suspense fallback={null}>
