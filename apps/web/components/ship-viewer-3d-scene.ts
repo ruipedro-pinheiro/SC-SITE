@@ -2,12 +2,17 @@ import * as THREE from "three";
 
 const TARGET_MODEL_SIZE = 4;
 
-/** Catppuccin Mocha hull material — solid opaque, front-face only
- *  to hide interior geometry bleeding through. */
-const HULL_MATERIAL = new THREE.MeshStandardMaterial({
-  color: 0x7f849c, // overlay1 — neutral grey, lights add the color
-  metalness: 0.3,
-  roughness: 0.5,
+/** Cinematic hull material — metallic brushed steel with a clearcoat shell.
+ *  The clearcoat gives the ship that polished-metal look you get on real
+ *  studio renders, even without textures. Environment HDRI drives the
+ *  reflections; directional lights carve the panel lines. */
+const HULL_MATERIAL = new THREE.MeshPhysicalMaterial({
+  color: 0x9ea3bb, // soft platinum — slightly cooler than pure grey
+  metalness: 0.85,
+  roughness: 0.35,
+  clearcoat: 0.75,
+  clearcoatRoughness: 0.15,
+  envMapIntensity: 1.15,
   side: THREE.FrontSide,
 });
 
@@ -29,22 +34,26 @@ export function normalizeShipScene(scene: THREE.Group): NormalizedShipScene {
   clone.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
 
-    // Compute normals if missing — these GLBs are position-only vertex soup
+    // Compute vertex normals from geometry — these GLBs ship without them.
     const geo = child.geometry;
-    if (geo instanceof THREE.BufferGeometry && !geo.getAttribute("normal")) {
-      geo.computeVertexNormals();
+    if (geo instanceof THREE.BufferGeometry) {
+      if (!geo.getAttribute("normal")) {
+        geo.computeVertexNormals();
+      }
+      // Merge doubled vertices doesn't run here; we trust the source winding.
     }
 
-    // Apply hull material when the mesh has no material or a default one
-    if (!child.material || (child.material instanceof THREE.MeshBasicMaterial)) {
-      child.material = HULL_MATERIAL;
-    }
+    // Always override: we never have proper textures, and a consistent
+    // clearcoated hull reads better than whatever the GLB shipped with.
+    child.material = HULL_MATERIAL;
 
     child.castShadow = true;
     child.receiveShadow = true;
     child.frustumCulled = false;
   });
 
+  // Center at origin and lift slightly so the ContactShadows pick up
+  // a clean silhouette beneath the ship.
   clone.position.sub(sourceCenter);
   clone.scale.setScalar(scale);
   clone.position.multiplyScalar(scale);
