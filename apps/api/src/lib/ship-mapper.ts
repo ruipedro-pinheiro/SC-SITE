@@ -10,7 +10,7 @@
  *
  * Rules (no hardcode, no fabrication):
  *   - Missing dimensions/mass/HP → 0 (UI already tolerates zeros).
- *   - Missing damage_resistance rows → neutral 1.0 / 60% fill.
+ *   - Missing damage_resistance rows → null (UI hides the section).
  *   - Missing hardpoints → empty array (UI renders "no hardpoints" state).
  *   - `history` is always `[]` — no patch history data is ingested yet.
  */
@@ -90,7 +90,7 @@ export interface ShipDto {
   shieldHp: number;
   hullHp: number;
   hardpoints: ReadonlyArray<HardpointDto>;
-  damageResistance: DamageResistanceDto;
+  damageResistance: DamageResistanceDto | null;
   buyPriceAuec?: number;
   buyAt?: string;
   pledgeStoreUrl?: string;
@@ -179,7 +179,8 @@ function mapDamageRow(row: DbDamageRow | undefined): DamageResistanceRowDto {
   };
 }
 
-function mapDamageResistance(rows: ReadonlyArray<DbDamageRow>): DamageResistanceDto {
+function mapDamageResistance(rows: ReadonlyArray<DbDamageRow>): DamageResistanceDto | null {
+  if (rows.length === 0) return null;
   const byType = new Map(rows.map((r) => [r.damageType, r] as const));
   return {
     physical: mapDamageRow(byType.get("physical")),

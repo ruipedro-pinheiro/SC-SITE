@@ -82,7 +82,9 @@ export function CombatPanel({ ship }: CombatPanelProps): JSX.Element {
         <div className="text-11 text-overlay0 py-2">no combat data available</div>
       ) : null}
 
-      <DamageResistanceStrip resistance={ship.damageResistance} />
+      {ship.damageResistance ? (
+        <DamageResistanceStrip resistance={ship.damageResistance} />
+      ) : null}
     </PanelShell>
   );
 }

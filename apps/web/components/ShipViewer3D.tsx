@@ -2,8 +2,6 @@
 
 import { Environment, OrbitControls, Stars } from "@react-three/drei";
 import { Canvas, useLoader } from "@react-three/fiber";
-import { Bloom, EffectComposer, SMAA, ToneMapping } from "@react-three/postprocessing";
-import { BlendFunction, ToneMappingMode } from "postprocessing";
 import { type JSX, Suspense, useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -53,34 +51,24 @@ export function ShipViewer3D({
         camera={{ position: CAMERA_POSITION, fov: 32 }}
         dpr={[1, 2]}
         gl={{
-          antialias: false,
+          antialias: true,
           alpha: true,
           powerPreference: "high-performance",
           toneMapping: THREE.ACESFilmicToneMapping,
           toneMappingExposure: 1.1,
         }}
-        shadows
       >
-        {/* Fill + key lights — even with Environment, these carve detail */}
-        <ambientLight intensity={0.15} />
-        <directionalLight
-          position={[8, 10, 6]}
-          intensity={1.4}
-          color="#ffffff"
-          castShadow
-          shadow-mapSize={[2048, 2048]}
-          shadow-camera-near={0.1}
-          shadow-camera-far={30}
-          shadow-camera-left={-8}
-          shadow-camera-right={8}
-          shadow-camera-top={8}
-          shadow-camera-bottom={-8}
-        />
-        <directionalLight position={[-6, 3, -4]} intensity={0.6} color="#89b4fa" />
-        <directionalLight position={[2, -3, 7]} intensity={0.35} color="#fab387" />
-
-        {/* HDRI environment — gives us real reflections on the metallic hull */}
-        <Environment preset="warehouse" background={false} environmentIntensity={0.85} />
+        {/* Lighting: with embedded lights stripped from the GLB, our
+            scene lights each add ~12 uniforms/shader — well under 1024.
+            Key from upper-right, fill from lower-left to wrap the hull. */}
+        {/* Environment provides the PMREM env map metallic surfaces need
+            to show reflections. "warehouse" gives neutral soft reflections
+            without overpowering the space background. backgroundBlurriness
+            hides the env texture from the background — Stars stay visible. */}
+        <Environment preset="warehouse" />
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[6, 8, 5]} intensity={1.4} color="#ffffff" />
+        <directionalLight position={[-4, -2, -3]} intensity={0.35} color="#8899cc" />
 
         {/* Deep-space starfield */}
         <Stars
@@ -110,19 +98,6 @@ export function ShipViewer3D({
           target={[0, 0, 0]}
         />
 
-        <EffectComposer multisampling={0}>
-          <SMAA />
-          <Bloom
-            intensity={0.45}
-            luminanceThreshold={0.8}
-            luminanceSmoothing={0.3}
-            mipmapBlur
-          />
-          <ToneMapping
-            mode={ToneMappingMode.ACES_FILMIC}
-            blendFunction={BlendFunction.NORMAL}
-          />
-        </EffectComposer>
       </Canvas>
     </div>
   );

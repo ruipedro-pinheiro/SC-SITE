@@ -84,7 +84,7 @@ export interface Ship {
   shieldHp: number;
   hullHp: number;
   hardpoints: ReadonlyArray<Hardpoint>;
-  damageResistance: DamageResistance;
+  damageResistance: DamageResistance | null;
   // economy
   buyPriceAuec?: number;
   buyAt?: string;

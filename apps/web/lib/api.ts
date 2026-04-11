@@ -81,7 +81,7 @@ type RawShip = {
     readonly energy: RawDamageRow;
     readonly thermal: RawDamageRow;
     readonly biochemical: RawDamageRow;
-  };
+  } | null;
   readonly buyPriceAuec?: number | undefined;
   readonly buyAt?: string | undefined;
   readonly pledgeStoreUrl?: string | undefined;
@@ -95,7 +95,7 @@ type RawShip = {
   }>;
 };
 
-function toDamageRow(row: RawDamageRow): Ship["damageResistance"]["physical"] {
+function toDamageRow(row: RawDamageRow): NonNullable<Ship["damageResistance"]>["physical"] {
   const accent = row.accent;
   return accent !== undefined
     ? { multiplier: row.multiplier, fillPct: row.fillPct, accent }
@@ -131,13 +131,15 @@ export function toShip(raw: RawShip): Ship {
         ? { id: h.id, size: h.size, location: h.location, type: h.type, weapon }
         : { id: h.id, size: h.size, location: h.location, type: h.type };
     }),
-    damageResistance: {
-      physical: toDamageRow(raw.damageResistance.physical),
-      distortion: toDamageRow(raw.damageResistance.distortion),
-      energy: toDamageRow(raw.damageResistance.energy),
-      thermal: toDamageRow(raw.damageResistance.thermal),
-      biochemical: toDamageRow(raw.damageResistance.biochemical),
-    },
+    damageResistance: raw.damageResistance
+      ? {
+          physical: toDamageRow(raw.damageResistance.physical),
+          distortion: toDamageRow(raw.damageResistance.distortion),
+          energy: toDamageRow(raw.damageResistance.energy),
+          thermal: toDamageRow(raw.damageResistance.thermal),
+          biochemical: toDamageRow(raw.damageResistance.biochemical),
+        }
+      : null,
     history: raw.history.map((h) => ({
       version: h.version,
       date: h.date,
