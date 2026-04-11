@@ -58,17 +58,14 @@ export function ShipViewer3D({
           toneMappingExposure: 1.1,
         }}
       >
-        {/* Lighting: with embedded lights stripped from the GLB, our
-            scene lights each add ~12 uniforms/shader — well under 1024.
-            Key from upper-right, fill from lower-left to wrap the hull. */}
-        {/* Environment provides the PMREM env map metallic surfaces need
-            to show reflections. "warehouse" gives neutral soft reflections
-            without overpowering the space background. backgroundBlurriness
-            hides the env texture from the background — Stars stay visible. */}
-        <Environment preset="warehouse" />
-        <ambientLight intensity={0.4} />
-        <directionalLight position={[6, 8, 5]} intensity={1.4} color="#ffffff" />
-        <directionalLight position={[-4, -2, -3]} intensity={0.35} color="#8899cc" />
+        {/* "studio" env map gives sharp metallic reflections without warm
+            color bias — our scene lights provide the Catppuccin Mocha palette. */}
+        <Environment preset="studio" />
+        {/* Key: cool starlight blue from upper-right.
+            Fill: lavender nebula tint from lower-left to wrap shadow side. */}
+        <ambientLight intensity={0.25} color="#1a2040" />
+        <directionalLight position={[6, 8, 5]} intensity={1.6} color="#b8d4ff" />
+        <directionalLight position={[-5, -1, -4]} intensity={0.55} color="#9b7fd4" />
 
         {/* Deep-space starfield */}
         <Stars

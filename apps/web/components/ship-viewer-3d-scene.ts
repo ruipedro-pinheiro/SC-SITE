@@ -49,6 +49,34 @@ export function normalizeShipScene(scene: THREE.Group): NormalizedShipScene {
 
     child.frustumCulled = false;
 
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+
+    // Cap emissive glow from thruster/engine textures. The GLB bakes
+    // full-brightness orange thruster maps meant for dark in-game shots;
+    // in the viewer they overpower the hull. 0.15 keeps warmth, kills flash.
+    for (const m of mats) {
+      if (m instanceof THREE.MeshStandardMaterial && m.emissiveIntensity > 0.15) {
+        m.emissiveIntensity = 0.15;
+      }
+    }
+
+    // Cockpit glass transparency. Canopy/glass meshes get semi-transparent
+    // treatment so the cockpit interior is visible through the windshield.
+    const nameLower = child.name.toLowerCase();
+    const isGlass = nameLower === "glass" || nameLower === "canopy" ||
+      nameLower.includes("cockpit_glass") || nameLower.includes("windshield");
+    if (isGlass) {
+      for (const m of mats) {
+        if (m instanceof THREE.MeshStandardMaterial) {
+          m.transparent = true;
+          m.opacity = nameLower === "glass" ? 0.22 : 0.4;
+          m.roughness = Math.min(m.roughness, 0.08);
+          m.metalness = 0.0;
+          m.depthWrite = false;
+        }
+      }
+    }
+
     if (child instanceof THREE.SkinnedMesh) {
       // Bake skin into a static Mesh — kills bone-matrix uniforms.
       // Keep the original material so textures are preserved.
